@@ -4,33 +4,49 @@
     <title>Family Meal Planner</title>
     <style>
         body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
-        .card-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 5px solid #ccc; }
+        
+        /* This makes the grid responsive */
+        .card-container { 
+            display: grid; 
+            gap: 15px; 
+            /* On mobile: 1 column. On laptop: as many 150px items as fit */
+            grid-template-columns: 1fr; 
+        }
+        @media (min-width: 800px) {
+            .card-container { grid-template-columns: repeat(7, 1fr); }
+        }
+
+        .card { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #ccc; font-size: 0.9em; }
         .card.locked { border-left: 5px solid #28a745; }
         .card.out { border-left: 5px solid #dc3545; background: #fff5f5; }
-        .actions { margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap; }
-        button { cursor: pointer; padding: 8px; font-size: 12px; }
+        .actions { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+        button { cursor: pointer; padding: 5px; font-size: 11px; }
     </style>
 </head>
 <body>
 
     <h1>Family Meal Planner</h1>
     <button onclick="initializeSchedule()">Start Fresh Plan</button>
-    <div id="schedule-container" style="margin-top: 20px;"></div>
+    <div id="schedule-container" class="card-container" style="margin-top: 20px;"></div>
 
     <script>
         const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTg90dJccxkJ3BhMJU2TJexeRwlX8XL1Tq1rOWSX6-lCUDF3umkbMNKHuKPgjq1UFKl4eJjww3nC8vD/pub?gid=102504071&single=true&output=csv";
         let recipePool = [];
         let schedule = [];
 
-        // 1. Define functions first
         function render() {
             const container = document.getElementById('schedule-container');
             container.innerHTML = "";
             schedule.forEach((item, i) => {
                 const card = document.createElement('div');
                 card.className = `card ${item.locked ? 'locked' : ''} ${item.status === 'out' ? 'out' : ''}`;
-                let hearts = (item.rating.includes("K") ? "❤️K " : "") + (item.rating.includes("R") ? "❤️R " : "");
+                
+                // Reinstating the Heart Emoji Logic
+                let hearts = "";
+                if (item.rating) {
+                    if (item.rating.includes("K")) hearts += "❤️K ";
+                    if (item.rating.includes("R")) hearts += "❤️R ";
+                }
                 
                 card.innerHTML = `
                     <strong>Day ${i+1}</strong><br>
@@ -39,33 +55,31 @@
                     <div class="actions">
                         <button onclick="toggleLock(${i})">${item.locked ? 'Unlock' : 'Lock'}</button>
                         <button onclick="reroll(${i})" ${item.locked || item.status === 'out' ? 'disabled' : ''}>Reroll</button>
-                        <button onclick="toggleOut(${i})">${item.status === 'out' ? 'Back Home' : 'Going Out'}</button>
+                        <button onclick="toggleOut(${i})">${item.status === 'out' ? 'Back' : 'Out'}</button>
                     </div>
                 `;
                 container.appendChild(card);
             });
         }
 
+        // --- Logic remains the same ---
         function toggleLock(i) { schedule[i].locked = !schedule[i].locked; render(); }
         function toggleOut(i) { schedule[i].status = (schedule[i].status === 'out' ? 'home' : 'out'); render(); }
         function reroll(i) { 
             schedule[i] = { ...recipePool[Math.floor(Math.random() * recipePool.length)], locked: false, status: 'home' }; 
             render(); 
         }
-
         function initializeSchedule() {
             schedule = schedule.map(item => item.locked ? item : { ...recipePool[Math.floor(Math.random() * recipePool.length)], locked: false, status: 'home' });
             render();
         }
 
-        // 2. Define the Fetching logic
         async function fetchRecipes() {
             try {
                 const response = await fetch(csvUrl);
                 const data = await response.text();
                 const lines = data.split('\n');
                 const headers = lines[0].toLowerCase().split(',');
-                
                 const idxName = headers.indexOf("dish name");
                 const idxCook = headers.indexOf("who's the cook?");
                 const idxRating = headers.indexOf("rating");
@@ -87,7 +101,6 @@
             }
         }
 
-        // 3. Start the app
         fetchRecipes();
     </script>
 </body>
