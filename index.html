@@ -2,18 +2,26 @@
 <html>
 <head>
     <title>Family Meal Planner</title>
-    </head>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
+        .card-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 5px solid #ccc; }
+        .card.locked { border-left: 5px solid #28a745; }
+        .card.out { border-left: 5px solid #dc3545; background: #fff5f5; }
+        .actions { margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap; }
+        button { cursor: pointer; padding: 8px; font-size: 12px; }
+    </style>
+</head>
 <body>
+
     <h1>Family Meal Planner</h1>
     <button onclick="initializeSchedule()">Start Fresh Plan</button>
     <div id="schedule-container" style="margin-top: 20px;"></div>
-        
-        <script>
+
+    <script>
         const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTg90dJccxkJ3BhMJU2TJexeRwlX8XL1Tq1rOWSX6-lCUDF3umkbMNKHuKPgjq1UFKl4eJjww3nC8vD/pub?gid=102504071&single=true&output=csv";
-        
-        // Ensure these are defined at the very top
         let recipePool = [];
-        let schedule = []; 
+        let schedule = [];
 
         async function fetchRecipes() {
             try {
@@ -28,44 +36,55 @@
 
                 recipePool = lines.slice(1).filter(l => l.trim()).map(line => {
                     const v = line.split(',');
-                    return { 
-                        name: v[idxName], 
-                        cook: v[idxCook] || "Anyone", 
-                        rating: v[idxRating] || "" 
-                    };
+                    return { name: v[idxName], cook: v[idxCook] || "Anyone", rating: v[idxRating] || "" };
                 });
-                
-                // Only build the initial 14-day array if it doesn't exist
+
                 if (schedule.length === 0) {
                     schedule = Array(14).fill(null).map(() => ({ 
                         ...recipePool[Math.floor(Math.random() * recipePool.length)], 
-                        locked: false, 
-                        status: 'home' 
+                        locked: false, status: 'home' 
                     }));
                 }
                 render();
             } catch (err) {
-                document.getElementById('schedule-container').innerHTML = "Data Loading Error: " + err.message;
+                document.getElementById('schedule-container').innerHTML = "Error: " + err.message;
             }
         }
 
-        function initializeSchedule() {
-            // The "Start Fresh" button logic
-            schedule = schedule.map((item) => {
-                if (item.locked) {
-                    return item; 
-                } else {
-                    return { 
-                        ...recipePool[Math.floor(Math.random() * recipePool.length)], 
-                        locked: false, 
-                        status: 'home' 
-                    };
-                }
+        function render() {
+            const container = document.getElementById('schedule-container');
+            container.innerHTML = "";
+            schedule.forEach((item, i) => {
+                const card = document.createElement('div');
+                card.className = `card ${item.locked ? 'locked' : ''} ${item.status === 'out' ? 'out' : ''}`;
+                let hearts = (item.rating.includes("K") ? "❤️K " : "") + (item.rating.includes("R") ? "❤️R " : "");
+                
+                card.innerHTML = `
+                    <strong>Day ${i+1}</strong><br>
+                    ${item.status === 'out' ? "Going out" : item.name}<br>
+                    <small>${item.status === 'out' ? "" : 'Cook: ' + item.cook + ' ' + hearts}</small>
+                    <div class="actions">
+                        <button onclick="toggleLock(${i})">${item.locked ? 'Unlock' : 'Lock'}</button>
+                        <button onclick="reroll(${i})" ${item.locked || item.status === 'out' ? 'disabled' : ''}>Reroll</button>
+                        <button onclick="toggleOut(${i})">${item.status === 'out' ? 'Back Home' : 'Going Out'}</button>
+                    </div>
+                `;
+                container.appendChild(card);
             });
+        }
+
+        function toggleLock(i) { schedule[i].locked = !schedule[i].locked; render(); }
+        function toggleOut(i) { schedule[i].status = (schedule[i].status === 'out' ? 'home' : 'out'); render(); }
+        function reroll(i) { 
+            schedule[i] = { ...recipePool[Math.floor(Math.random() * recipePool.length)], locked: false, status: 'home' }; 
+            render(); 
+        }
+
+        function initializeSchedule() {
+            schedule = schedule.map(item => item.locked ? item : { ...recipePool[Math.floor(Math.random() * recipePool.length)], locked: false, status: 'home' });
             render();
         }
 
-        // ... (Include your existing render/toggle functions here)
         fetchRecipes();
     </script>
 </body>
