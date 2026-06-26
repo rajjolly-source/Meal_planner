@@ -1,28 +1,72 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Meal Planner App</title>
+    <title>Meal Planner</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f4f4f4; }
+    </style>
 </head>
 <body>
-    <div id="meal-planner-output">Loading data...</div>
+
+    <h1>Meal Planner</h1>
+    <div id="meal-planner-output">Loading your recipes...</div>
 
     <script>
-        // Use your direct link here, ensure it ends in &output=csv
         const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTg90dJccxkJ3BhMJU2TJexeRwlX8XL1Tq1rOWSX6-lCUDF3umkbMNKHuKPgjq1UFKl4eJjww3nC8vD/pub?gid=102504071&single=true&output=csv";
 
         async function fetchRecipesFromSheet() {
             try {
-                // No proxy needed now!
                 const response = await fetch(csvUrl);
                 if (!response.ok) throw new Error("Network response was not ok");
                 
-                const data = await response.text();
-                document.getElementById('meal-planner-output').innerHTML = "Success! Data loaded. (Check console for raw data)";
-                console.log("Raw CSV Data:", data);
+                const csvText = await response.text();
+                const lines = csvText.split('\n').filter(line => line.trim() !== "");
+                const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                
+                // Map the CSV data into a usable array of objects
+                const recipePool = lines.slice(1).map(line => {
+                    const values = line.split(',');
+                    return {
+                        name: values[headers.indexOf("dish name")],
+                        difficulty: values[headers.indexOf("difficulty")],
+                        cook: values[headers.indexOf("who's the cook?")]
+                    };
+                });
+
+                // Display success message
+                document.getElementById('meal-planner-output').innerHTML = `
+                    <p>Successfully loaded <strong>${recipePool.length}</strong> recipes.</p>
+                    <button onclick="generateSchedule()">Generate 14-Day Schedule</button>
+                    <div id="schedule-container"></div>
+                `;
+                
+                window.recipePool = recipePool; // Store globally for access
             } catch (error) {
                 document.getElementById('meal-planner-output').innerHTML = "Error: " + error.message;
             }
         }
+
+        function generateSchedule() {
+            const container = document.getElementById('schedule-container');
+            let html = "<table><tr><th>Day</th><th>Meal</th><th>Cook</th></tr>";
+            
+            // Temporary logic: Pick a random meal for 14 days
+            for(let i = 1; i <= 14; i++) {
+                const randomRecipe = window.recipePool[Math.floor(Math.random() * window.recipePool.length)];
+                html += `<tr>
+                    <td>Day ${i}</td>
+                    <td>${randomRecipe.name}</td>
+                    <td>${randomRecipe.cook}</td>
+                </tr>`;
+            }
+            
+            html += "</table>";
+            container.innerHTML = html;
+        }
+
         fetchRecipesFromSheet();
     </script>
 </body>
