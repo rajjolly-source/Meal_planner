@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Meal Planner App</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #meal-planner-output { background: #f4f4f4; padding: 15px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+    <div id="meal-planner-output">Loading recipes from Google Sheets...</div>
+
+    <script>
+        const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        
+        // Your published link
+        const originalUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTg90dJccxkJ3BhMJU2TJexeRwlX8XL1Tq1rOWSX6-lCUDF3umkbMNKHuKPgjq1UFKl4eJjww3nC8vD/pubhtml?gid=102504071&single=true";
+
+        // Rewrite URL to get clean CSV
+        let csvUrl = originalUrl;
+        if (originalUrl.includes('/pubhtml')) {
+            csvUrl = originalUrl.replace('/pubhtml', '/pub?') + '&output=csv';
+        }
+
+        let recipePool = [];
+        let schedule = Array(14).fill(null).map((_, i) => ({
+            dayIndex: i,
+            dayName: daysOfWeek[i % 7],
+            weekNum: Math.floor(i / 7) + 1,
+            meal: "",
+            locked: false
+        }));
+
+        // CSV Parser 
+        function parseCSV(text) {
+            let lines = [];
+            let row = [""];
+            let inQuotes = false;
+            for (let i = 0; i < text.length; i++) {
+                let c = text[i];
+                let next = text[i+1];
+                if (c === '"') {
+                    if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; }
+                    else { inQuotes = !inQuotes; }
+                } else if (c === ',' && !inQuotes) {
+                    row.push('');
+                } else if ((c === '\r' || c === '\n') && !inQuotes) {
+                    if (c === '\r' && next === '\n') { i++; }
+                    lines.push(row);
+                    row = [''];
+                } else {
+                    row[row.length - 1] += c;
+                }
+            }
+            if (row.length > 1 || row[0] !== '') lines.push(row);
+            return lines;
+        }
+
+        // Fetch and process the data
+        async function fetchRecipesFromSheet() {
+            try {
+                // THE FIX: We route the request through a proxy to bypass the file:/// restriction
+                const proxyUrl = "https://corsproxy.io/?"; 
+                const response = await fetch(proxyUrl + encodeURIComponent(csvUrl));
+                
+                if (!response.ok) throw new Error("Network response was not ok");
+                
+                const data = await response.text();
+                const rows = parseCSV(data);
+                
+                if (rows.length < 2) throw new Error("Sheet looks empty!");
+
+                // Map headers dynamically
+                const headers = rows[0].map(h => h.trim().toLowerCase());
+                const idxDifficulty = headers.indexOf("difficulty");
+                const idxName = headers.indexOf("dish name");
+                const idxCook = headers.indexOf("who's the cook?");
+                const idxIngredients = headers.indexOf("ingridients") !== -1 ? headers.indexOf("ingridients") : headers.indexOf("ingredients"); 
+
+                // Build the recipe pool
+                for (let i = 1; i < rows.length; i++) {
+                    if (!rows[i][idxName]) continue; // Skip blanks
+
+                    recipePool.push({
+                        name: rows[i][idxName],
+                        difficulty: rows[i][idxDifficulty] || "Unknown",
+                        cook: rows[i][idxCook] || "Anyone",
+                        ingredients: rows[i][idxIngredients] || ""
+                    });
+                }
+
+                // Output success to the screen
+                document.getElementById('meal-planner-output').innerHTML = `
+                    <h3 style="color: green;">Success!</h3>
+                    <p>Successfully bypassed the security error and loaded <strong>${recipePool.length}</strong> recipes.</p>
+                    <p>First recipe found: <strong>${recipePool[0]?.name || "None"}</strong></p>
+                `;
+                
+                console.log("Full Recipe Pool:", recipePool);
+
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                document.getElementById('meal-planner-output').innerHTML = `
+                    <h3 style="color:red;">Error Loading Data</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        // Run the function
+        fetchRecipesFromSheet();
+    </script>
+</body>
+</html>
