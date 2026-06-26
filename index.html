@@ -9,8 +9,10 @@
         .card { background: white; padding: 10px; border-radius: 8px; border-left: 5px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .card.locked { border-left-color: #28a745; }
         .card.out { border-left-color: #dc3545; background: #fff5f5; }
-        button { cursor: pointer; padding: 8px; width: 100%; margin-top: 5px; }
-        /* Added margin-bottom to space out Week 1 and Week 2 */
+        
+        /* Updated to include the new select dropdown styling */
+        button, select { cursor: pointer; padding: 8px; width: 100%; margin-top: 5px; font-size: 12px; box-sizing: border-box; }
+        
         .shopping-box { background: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; margin-bottom: 30px; border: 2px dashed #999; }
     </style>
 </head>
@@ -20,11 +22,11 @@
     <div id="meta-info" style="margin-bottom: 10px; font-weight: bold;"></div>
     <button onclick="initializeSchedule()" style="background: #007bff; color: white; padding: 10px; border: none; font-size: 14px; cursor: pointer;">Start Fresh Plan</button>
     
-    <h2 style="margin-top: 30px;">Week 1 (Days 1 - 7)</h2>
+    <h2 style="margin-top: 30px;">Week 1</h2>
     <div id="week1-container" class="card-container"></div>
     <div id="shopping1-container"></div>
 
-    <h2 style="margin-top: 10px;">Week 2 (Days 8 - 14)</h2>
+    <h2 style="margin-top: 10px;">Week 2</h2>
     <div id="week2-container" class="card-container"></div>
     <div id="shopping2-container"></div>
 
@@ -32,6 +34,9 @@
         const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTg90dJccxkJ3BhMJU2TJexeRwlX8XL1Tq1rOWSX6-lCUDF3umkbMNKHuKPgjq1UFKl4eJjww3nC8vD/pub?gid=102504071&single=true&output=csv";
         let recipePool = [];
         let schedule = JSON.parse(localStorage.getItem('savedSchedule') || "[]");
+        
+        // Added day names for a more natural layout
+        const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
         async function fetchRecipes() {
             try {
@@ -62,13 +67,11 @@
         function render() {
             document.getElementById('meta-info').innerText = "Last generated: " + (localStorage.getItem('genDate') || "Never");
             
-            // Grab our two new containers and clear them out
             const w1Cont = document.getElementById('week1-container');
             const w2Cont = document.getElementById('week2-container');
             w1Cont.innerHTML = "";
             w2Cont.innerHTML = "";
             
-            // Create two separate lists for the ingredients
             let ingW1 = new Set();
             let ingW2 = new Set();
 
@@ -76,12 +79,22 @@
                 const c = document.createElement('div');
                 c.className = `card ${item.locked ? 'locked' : ''} ${item.status === 'out' ? 'out' : ''}`;
                 let h = (item.rating?.includes("K") ? "❤️K " : "") + (item.rating?.includes("R") ? "❤️R " : "");
-                c.innerHTML = `<strong>Day ${i+1}</strong><br>${item.status==='out'?'Out':item.name}<br><small>${item.status==='out'?'':item.cook+'<br>'+h}</small>
+                
+                // Build the dropdown options dynamically based on the current recipe pool
+                let optionsHTML = `<option value="OUT" ${item.status === 'out' ? 'selected' : ''}>Going Out</option>`;
+                recipePool.forEach(r => {
+                    let safeName = r.name.replace(/"/g, '&quot;');
+                    let isSelected = (item.status !== 'out' && item.name === r.name) ? 'selected' : '';
+                    optionsHTML += `<option value="${safeName}" ${isSelected}>${r.name}</option>`;
+                });
+
+                c.innerHTML = `<strong>${dayNames[i % 7]}</strong><br>${item.status==='out'?'Out':item.name}<br><small>${item.status==='out'?'':item.cook+'<br>'+h}</small>
                     <button onclick="toggleLock(${i})">${item.locked?'Unlock':'Lock'}</button>
                     <button onclick="reroll(${i})" ${item.locked||item.status==='out'?'disabled':''}>Reroll</button>
-                    <button onclick="toggleOut(${i})">${item.status==='out'?'Back':'Out'}</button>`;
+                    <select onchange="manualOverride(${i}, this.value)" ${item.locked ? 'disabled' : ''}>
+                        ${optionsHTML}
+                    </select>`;
                 
-                // If it is Day 1 to 7 (index 0 to 6), put it in Week 1
                 if (i < 7) {
                     w1Cont.appendChild(c);
                     if(item.ingredients && item.status !== 'out') {
@@ -89,7 +102,6 @@
                         item.ingredients.split(delim).forEach(ing => { if(ing.trim()) ingW1.add(ing.trim()); });
                     }
                 } 
-                // Otherwise, put it in Week 2
                 else {
                     w2Cont.appendChild(c);
                     if(item.ingredients && item.status !== 'out') {
@@ -99,14 +111,26 @@
                 }
             });
             
-            // Render both shopping lists independently
             document.getElementById('shopping1-container').innerHTML = `<div class="shopping-box"><h3>Week 1 Shopping List</h3><ul>${Array.from(ingW1).map(i => `<li>${i}</li>`).join('')}</ul></div>`;
             document.getElementById('shopping2-container').innerHTML = `<div class="shopping-box"><h3>Week 2 Shopping List</h3><ul>${Array.from(ingW2).map(i => `<li>${i}</li>`).join('')}</ul></div>`;
         }
 
-        // Logic functions remain exactly the same!
         function toggleLock(i) { schedule[i].locked = !schedule[i].locked; localStorage.setItem('savedSchedule', JSON.stringify(schedule)); render(); }
-        function toggleOut(i) { schedule[i].status = (schedule[i].status === 'out' ? 'home' : 'out'); localStorage.setItem('savedSchedule', JSON.stringify(schedule)); render(); }
+        
+        // This new function handles the dropdown selection
+        function manualOverride(i, val) {
+            if (val === 'OUT') {
+                schedule[i].status = 'out';
+            } else {
+                const selectedRecipe = recipePool.find(r => r.name === val);
+                if (selectedRecipe) {
+                    schedule[i] = { ...selectedRecipe, locked: false, status: 'home' };
+                }
+            }
+            localStorage.setItem('savedSchedule', JSON.stringify(schedule));
+            render();
+        }
+
         function reroll(i) { schedule[i] = {...recipePool[Math.floor(Math.random()*recipePool.length)], locked:false, status:'home'}; localStorage.setItem('savedSchedule', JSON.stringify(schedule)); render(); }
         
         function initializeSchedule() {
