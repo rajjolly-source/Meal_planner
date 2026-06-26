@@ -4,8 +4,8 @@
     <title>Family Meal Planner</title>
     <style>
         body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
-        #schedule-container { display: grid; gap: 15px; grid-template-columns: 1fr; }
-        @media (min-width: 900px) { #schedule-container { grid-template-columns: repeat(7, 1fr); } }
+        .card-container { display: grid; gap: 15px; grid-template-columns: 1fr; }
+        @media (min-width: 900px) { .card-container { grid-template-columns: repeat(7, 1fr); } }
         .card { background: white; padding: 10px; border-radius: 8px; border-left: 5px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .card.locked { border-left-color: #28a745; }
         .card.out { border-left-color: #dc3545; background: #fff5f5; }
@@ -16,9 +16,9 @@
 <body>
 
     <h1>Family Meal Planner</h1>
-    <div id="meta-info"></div>
-    <button onclick="initializeSchedule()">Start Fresh Plan</button>
-    <div id="schedule-container"></div>
+    <div id="meta-info" style="margin-bottom: 10px; font-weight: bold;"></div>
+    <button onclick="initializeSchedule()" style="background: #007bff; color: white; padding: 10px; border: none; font-size: 14px; cursor: pointer;">Start Fresh Plan</button>
+    <div id="schedule-container" class="card-container" style="margin-top: 20px;"></div>
     <div id="shopping-container"></div>
 
     <script>
@@ -27,21 +27,30 @@
         let schedule = JSON.parse(localStorage.getItem('savedSchedule') || "[]");
 
         async function fetchRecipes() {
-            const res = await fetch(csvUrl);
-            const text = await res.text();
-            const rows = text.split('\n');
-            const headers = rows[0].toLowerCase().split(',');
-            recipePool = rows.slice(1).filter(l => l.trim()).map(line => {
-                const v = line.split(',');
-                return { 
-                    name: v[headers.indexOf("dish name")], 
-                    cook: v[headers.indexOf("who's the cook?")], 
-                    rating: v[headers.indexOf("rating")], 
-                    ingredients: v[headers.indexOf("ingredients")] || "" 
-                };
-            });
-            if (schedule.length === 0) initializeSchedule();
-            render();
+            try {
+                const res = await fetch(csvUrl);
+                const text = await res.text();
+                const rows = text.split('\n');
+                const headers = rows[0].toLowerCase().split(',');
+                recipePool = rows.slice(1).filter(l => l.trim()).map(line => {
+                    const v = line.split(',');
+                    return { 
+                        name: v[headers.indexOf("dish name")], 
+                        cook: v[headers.indexOf("who's the cook?")], 
+                        rating: v[headers.indexOf("rating")], 
+                        ingredients: v[headers.indexOf("ingredients")] || "" 
+                    };
+                });
+                
+                // If it's a completely fresh start, build it. Otherwise, just draw it.
+                if (schedule.length === 0) {
+                    initializeSchedule();
+                } else {
+                    render();
+                }
+            } catch(e) {
+                document.getElementById('schedule-container').innerHTML = "Error loading data.";
+            }
         }
 
         function render() {
@@ -59,16 +68,35 @@
                     <button onclick="reroll(${i})" ${item.locked||item.status==='out'?'disabled':''}>Reroll</button>
                     <button onclick="toggleOut(${i})">${item.status==='out'?'Back':'Out'}</button>`;
                 cont.appendChild(c);
-                if(item.ingredients && item.status !== 'out') item.ingredients.split(';').forEach(ing => ingList.add(ing.trim()));
+                
+                // Build shopping list
+                if(item.ingredients && item.status !== 'out') {
+                    // Splits by comma if your sheet uses commas, or semi-colons
+                    let delim = item.ingredients.includes(';') ? ';' : ',';
+                    item.ingredients.split(delim).forEach(ing => {
+                        if(ing.trim()) ingList.add(ing.trim());
+                    });
+                }
             });
+            
             document.getElementById('shopping-container').innerHTML = `<div class="shopping-box"><h3>Shopping List</h3><ul>${Array.from(ingList).map(i => `<li>${i}</li>`).join('')}</ul></div>`;
         }
 
         function toggleLock(i) { schedule[i].locked = !schedule[i].locked; localStorage.setItem('savedSchedule', JSON.stringify(schedule)); render(); }
         function toggleOut(i) { schedule[i].status = (schedule[i].status === 'out' ? 'home' : 'out'); localStorage.setItem('savedSchedule', JSON.stringify(schedule)); render(); }
         function reroll(i) { schedule[i] = {...recipePool[Math.floor(Math.random()*recipePool.length)], locked:false, status:'home'}; localStorage.setItem('savedSchedule', JSON.stringify(schedule)); render(); }
+        
         function initializeSchedule() {
-            schedule = schedule.map(it => it.locked ? it : {...recipePool[Math.floor(Math.random()*recipePool.length)], locked:false, status:'home'});
+            // THE FIX: It now knows how to build 14 days from scratch
+            if (schedule.length === 0) {
+                schedule = Array(14).fill(null).map(() => ({
+                    ...recipePool[Math.floor(Math.random() * recipePool.length)],
+                    locked: false, status: 'home'
+                }));
+            } else {
+                schedule = schedule.map(it => it.locked ? it : {...recipePool[Math.floor(Math.random()*recipePool.length)], locked:false, status:'home'});
+            }
+            
             localStorage.setItem('savedSchedule', JSON.stringify(schedule));
             localStorage.setItem('genDate', new Date().toLocaleString());
             render();
