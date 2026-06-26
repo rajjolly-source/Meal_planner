@@ -4,13 +4,25 @@
     <title>Family Meal Planner</title>
     <style>
         body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
-        .card-container { display: grid; gap: 15px; grid-template-columns: 1fr; }
-        @media (min-width: 1024px) { .card-container { grid-template-columns: repeat(7, 1fr); } }
+        
+        /* The CSS Grid Setup */
+        .card-container { 
+            display: grid; 
+            gap: 15px; 
+            grid-template-columns: 1fr; 
+        }
+        @media (min-width: 1024px) { 
+            .card-container { grid-template-columns: repeat(7, 1fr); } 
+        }
+
         .card { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 5px solid #ccc; font-size: 0.85em; }
         .card.locked { border-left: 5px solid #28a745; }
         .card.out { border-left: 5px solid #dc3545; background: #fff5f5; }
         .actions { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
-        button { cursor: pointer; padding: 4px; font-size: 10px; width: 100%; }
+        
+        /* Fixed button sizing */
+        button { cursor: pointer; padding: 6px; font-size: 11px; width: 100%; border: 1px solid #ddd; background: #fff; }
+        
         .shopping-box { background: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; border: 2px dashed #999; }
     </style>
 </head>
@@ -18,7 +30,7 @@
 
     <h1>Family Meal Planner</h1>
     <div id="meta-info" style="margin-bottom: 10px; font-weight: bold;"></div>
-    <button onclick="initializeSchedule()">Start Fresh Plan</button>
+    <button onclick="initializeSchedule()" style="background: #007bff; color: white; padding: 10px; border: none; font-size: 14px;">Start Fresh Plan</button>
     
     <div id="schedule-container" class="card-container" style="margin-top: 20px;"></div>
     
@@ -27,8 +39,9 @@
     <script>
         const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTg90dJccxkJ3BhMJU2TJexeRwlX8XL1Tq1rOWSX6-lCUDF3umkbMNKHuKPgjq1UFKl4eJjww3nC8vD/pub?gid=102504071&single=true&output=csv";
         let recipePool = [];
+        // Load from storage or set empty
         let schedule = JSON.parse(localStorage.getItem('savedSchedule')) || [];
-        let generatedDate = localStorage.getItem('genDate') || "";
+        let generatedDate = localStorage.getItem('genDate') || "Not yet generated";
 
         function save() {
             localStorage.setItem('savedSchedule', JSON.stringify(schedule));
@@ -64,7 +77,6 @@
             save();
         }
 
-        // Logic functions
         function toggleLock(i) { schedule[i].locked = !schedule[i].locked; render(); }
         function toggleOut(i) { schedule[i].status = (schedule[i].status === 'out' ? 'home' : 'out'); render(); }
         function reroll(i) { 
