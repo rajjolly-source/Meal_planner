@@ -1,65 +1,60 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Meal Planner</title>
+    <title>Family Meal Planner</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; }
+        .card-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .heart { font-size: 1.2em; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
-    <h1>Meal Planner</h1>
-    <div id="meal-planner-output">Loading...</div>
+    <h1>Family Meal Planner</h1>
+    <button id="genBtn">Generate 14-Day Schedule</button>
+    <div id="schedule-container" class="card-container"></div>
 
     <script>
         const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTg90dJccxkJ3BhMJU2TJexeRwlX8XL1Tq1rOWSX6-lCUDF3umkbMNKHuKPgjq1UFKl4eJjww3nC8vD/pub?gid=102504071&single=true&output=csv";
 
         async function fetchRecipesFromSheet() {
             try {
-                console.log("Fetching data...");
                 const response = await fetch(csvUrl);
                 const csvText = await response.text();
                 const lines = csvText.split('\n').filter(line => line.trim() !== "");
                 const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
                 
-                const recipePool = lines.slice(1).map(line => {
+                window.recipePool = lines.slice(1).map(line => {
                     const values = line.split(',');
                     return {
                         name: values[headers.indexOf("dish name")],
-                        difficulty: values[headers.indexOf("difficulty")],
-                        cook: values[headers.indexOf("who's the cook?")]
+                        cook: values[headers.indexOf("who's the cook?")],
+                        rating: values[headers.indexOf("rating")] || ""
                     };
                 });
-
-                window.recipePool = recipePool;
-                console.log("Recipes loaded:", recipePool);
-
-                document.getElementById('meal-planner-output').innerHTML = `
-                    <p>Loaded ${recipePool.length} recipes.</p>
-                    <button id="genBtn">Generate 14-Day Schedule</button>
-                    <div id="schedule-container"></div>
-                `;
-                
                 document.getElementById('genBtn').addEventListener('click', generateSchedule);
-            } catch (error) {
-                console.error("Error:", error);
-                document.getElementById('meal-planner-output').innerHTML = "Error: " + error.message;
-            }
+            } catch (error) { document.body.innerHTML = "Error loading: " + error.message; }
         }
 
         function generateSchedule() {
-            console.log("Generating...");
             const container = document.getElementById('schedule-container');
-            let html = "<table><tr><th>Day</th><th>Meal</th><th>Cook</th></tr>";
+            container.innerHTML = "";
             
             for(let i = 1; i <= 14; i++) {
-                const randomRecipe = window.recipePool[Math.floor(Math.random() * window.recipePool.length)];
-                html += `<tr><td>Day ${i}</td><td>${randomRecipe.name || 'N/A'}</td><td>${randomRecipe.cook || 'N/A'}</td></tr>`;
+                const recipe = window.recipePool[Math.floor(Math.random() * window.recipePool.length)];
+                
+                // Convert R and K into pretty hearts
+                let hearts = "";
+                if (recipe.rating.includes("K")) hearts += "❤️K ";
+                if (recipe.rating.includes("R")) hearts += "❤️R ";
+
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `<strong>Day ${i}</strong><br>${recipe.name}<br><small>Cook: ${recipe.cook}</small><br><span class="heart">${hearts}</span>`;
+                container.appendChild(card);
             }
-            
-            container.innerHTML = html + "</table>";
         }
 
         fetchRecipesFromSheet();
