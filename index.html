@@ -23,34 +23,7 @@
         let recipePool = [];
         let schedule = [];
 
-        async function fetchRecipes() {
-            try {
-                const response = await fetch(csvUrl);
-                const data = await response.text();
-                const lines = data.split('\n');
-                const headers = lines[0].toLowerCase().split(',');
-                
-                const idxName = headers.indexOf("dish name");
-                const idxCook = headers.indexOf("who's the cook?");
-                const idxRating = headers.indexOf("rating");
-
-                recipePool = lines.slice(1).filter(l => l.trim()).map(line => {
-                    const v = line.split(',');
-                    return { name: v[idxName], cook: v[idxCook] || "Anyone", rating: v[idxRating] || "" };
-                });
-
-                if (schedule.length === 0) {
-                    schedule = Array(14).fill(null).map(() => ({ 
-                        ...recipePool[Math.floor(Math.random() * recipePool.length)], 
-                        locked: false, status: 'home' 
-                    }));
-                }
-                render();
-            } catch (err) {
-                document.getElementById('schedule-container').innerHTML = "Error: " + err.message;
-            }
-        }
-
+        // 1. Define functions first
         function render() {
             const container = document.getElementById('schedule-container');
             container.innerHTML = "";
@@ -85,6 +58,36 @@
             render();
         }
 
+        // 2. Define the Fetching logic
+        async function fetchRecipes() {
+            try {
+                const response = await fetch(csvUrl);
+                const data = await response.text();
+                const lines = data.split('\n');
+                const headers = lines[0].toLowerCase().split(',');
+                
+                const idxName = headers.indexOf("dish name");
+                const idxCook = headers.indexOf("who's the cook?");
+                const idxRating = headers.indexOf("rating");
+
+                recipePool = lines.slice(1).filter(l => l.trim()).map(line => {
+                    const v = line.split(',');
+                    return { name: v[idxName], cook: v[idxCook] || "Anyone", rating: v[idxRating] || "" };
+                });
+
+                if (schedule.length === 0) {
+                    schedule = Array(14).fill(null).map(() => ({ 
+                        ...recipePool[Math.floor(Math.random() * recipePool.length)], 
+                        locked: false, status: 'home' 
+                    }));
+                }
+                render();
+            } catch (err) {
+                document.getElementById('schedule-container').innerHTML = "Error: " + err.message;
+            }
+        }
+
+        // 3. Start the app
         fetchRecipes();
     </script>
 </body>
