@@ -3,30 +3,68 @@
 <head>
     <title>Family Meal Planner</title>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f7f6; padding: 20px; color: #333; }
+        
         .card-container { display: grid; gap: 15px; grid-template-columns: 1fr; }
         @media (min-width: 900px) { .card-container { grid-template-columns: repeat(7, 1fr); } }
-        .card { background: white; padding: 10px; border-radius: 8px; border-left: 5px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .card.locked { border-left-color: #28a745; }
-        .card.out { border-left-color: #dc3545; background: #fff5f5; }
         
-        /* Updated to include the new select dropdown styling */
-        button, select { cursor: pointer; padding: 8px; width: 100%; margin-top: 5px; font-size: 12px; box-sizing: border-box; }
+        /* Softer shadows and rounded corners for the cards */
+        .card { 
+            padding: 15px; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05); 
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
         
-        .shopping-box { background: #fff; padding: 15px; border-radius: 8px; margin-top: 20px; margin-bottom: 30px; border: 2px dashed #999; }
+        /* A glowing green border for locked cards */
+        .card.locked { box-shadow: 0 0 0 3px #28a745, 0 4px 8px rgba(0,0,0,0.1); }
+        .card.out { background-color: #ffe8e8 !important; opacity: 0.8; }
+        
+        /* Rounded, styled buttons and dropdowns */
+        button, select { 
+            cursor: pointer; 
+            padding: 10px; 
+            width: 100%; 
+            margin-top: 8px; 
+            font-size: 13px; 
+            border-radius: 12px; 
+            border: 1px solid #ddd; 
+            background: white; 
+            font-weight: 500;
+        }
+        button:hover, select:hover { background: #f0f0f0; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* Fresh styling for the shopping lists */
+        .shopping-box { 
+            background: #fff; 
+            padding: 20px; 
+            border-radius: 16px; 
+            margin-top: 20px; 
+            margin-bottom: 30px; 
+            border: 2px dashed #cbd5e1; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.03);
+        }
+        .shopping-box h3 { margin-top: 0; color: #475569; }
+        
+        .main-btn { background: #0ea5e9; color: white; padding: 12px; border: none; font-size: 15px; cursor: pointer; border-radius: 12px; font-weight: bold; width: auto; }
+        .main-btn:hover { background: #0284c7; }
     </style>
 </head>
 <body>
 
     <h1>Family Meal Planner</h1>
-    <div id="meta-info" style="margin-bottom: 10px; font-weight: bold;"></div>
-    <button onclick="initializeSchedule()" style="background: #007bff; color: white; padding: 10px; border: none; font-size: 14px; cursor: pointer;">Start Fresh Plan</button>
+    <div id="meta-info" style="margin-bottom: 15px; font-weight: bold; color: #64748b;"></div>
+    <button class="main-btn" onclick="initializeSchedule()">Start Fresh Plan</button>
     
-    <h2 style="margin-top: 30px;">Week 1</h2>
+    <h2 style="margin-top: 35px; color: #334155;">Week 1</h2>
     <div id="week1-container" class="card-container"></div>
     <div id="shopping1-container"></div>
 
-    <h2 style="margin-top: 10px;">Week 2</h2>
+    <h2 style="margin-top: 20px; color: #334155;">Week 2</h2>
     <div id="week2-container" class="card-container"></div>
     <div id="shopping2-container"></div>
 
@@ -35,21 +73,24 @@
         let recipePool = [];
         let schedule = JSON.parse(localStorage.getItem('savedSchedule') || "[]");
         
-        // Added day names for a more natural layout
         const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        // A nice array of pastel colors for the 7 days of the week
+        const dayColors = ['#f8fafc', '#f1f5f9', '#fdf8f6', '#f0fdf4', '#f0f9ff', '#fdf4ff', '#fffbeb'];
 
         async function fetchRecipes() {
             try {
                 const res = await fetch(csvUrl);
                 const text = await res.text();
                 const rows = text.split('\n');
-                const headers = rows[0].toLowerCase().split(',');
+                // Trim headers to remove any accidental invisible spaces from Google Sheets
+                const headers = rows[0].toLowerCase().split(',').map(h => h.trim());
+                
                 recipePool = rows.slice(1).filter(l => l.trim()).map(line => {
                     const v = line.split(',');
                     return { 
-                        name: v[headers.indexOf("dish name")], 
-                        cook: v[headers.indexOf("who's the cook?")], 
-                        rating: v[headers.indexOf("rating")], 
+                        name: v[headers.indexOf("dish name")] || "Unknown Dish", 
+                        cook: v[headers.indexOf("who's the cook?")] || "Anyone", 
+                        rating: v[headers.indexOf("rating")] ? v[headers.indexOf("rating")].toUpperCase() : "", 
                         ingredients: v[headers.indexOf("ingredients")] || "" 
                     };
                 });
@@ -78,9 +119,19 @@
             schedule.forEach((item, i) => {
                 const c = document.createElement('div');
                 c.className = `card ${item.locked ? 'locked' : ''} ${item.status === 'out' ? 'out' : ''}`;
-                let h = (item.rating?.includes("K") ? "❤️K " : "") + (item.rating?.includes("R") ? "❤️R " : "");
                 
-                // Build the dropdown options dynamically based on the current recipe pool
+                // Set the pastel background color based on the day of the week
+                if (item.status !== 'out') {
+                    c.style.backgroundColor = dayColors[i % 7];
+                }
+
+                // Safely checking for Kayan and Rhiyan's initials
+                let h = "";
+                if (item.rating) {
+                    if (item.rating.includes("K")) h += "❤️K ";
+                    if (item.rating.includes("R")) h += "❤️R ";
+                }
+                
                 let optionsHTML = `<option value="OUT" ${item.status === 'out' ? 'selected' : ''}>Going Out</option>`;
                 recipePool.forEach(r => {
                     let safeName = r.name.replace(/"/g, '&quot;');
@@ -88,12 +139,22 @@
                     optionsHTML += `<option value="${safeName}" ${isSelected}>${r.name}</option>`;
                 });
 
-                c.innerHTML = `<strong>${dayNames[i % 7]}</strong><br>${item.status==='out'?'Out':item.name}<br><small>${item.status==='out'?'':item.cook+'<br>'+h}</small>
-                    <button onclick="toggleLock(${i})">${item.locked?'Unlock':'Lock'}</button>
-                    <button onclick="reroll(${i})" ${item.locked||item.status==='out'?'disabled':''}>Reroll</button>
-                    <select onchange="manualOverride(${i}, this.value)" ${item.locked ? 'disabled' : ''}>
-                        ${optionsHTML}
-                    </select>`;
+                c.innerHTML = `
+                    <div>
+                        <strong style="font-size: 1.1em; color: #0f172a;">${dayNames[i % 7]}</strong><br>
+                        <span style="font-size: 1em; display: inline-block; margin-top: 5px;">${item.status==='out' ? 'Out' : item.name}</span><br>
+                        <small style="color: #64748b; display: inline-block; margin-top: 4px;">
+                            ${item.status==='out' ? '' : 'Cook: ' + item.cook + '<br><span style="font-size: 1.2em; display: inline-block; margin-top: 3px;">' + h + '</span>'}
+                        </small>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button onclick="toggleLock(${i})">${item.locked ? 'Unlock' : 'Lock'}</button>
+                        <button onclick="reroll(${i})" ${item.locked || item.status === 'out' ? 'disabled' : ''}>Reroll</button>
+                        <select onchange="manualOverride(${i}, this.value)" ${item.locked ? 'disabled' : ''}>
+                            ${optionsHTML}
+                        </select>
+                    </div>
+                `;
                 
                 if (i < 7) {
                     w1Cont.appendChild(c);
@@ -111,13 +172,12 @@
                 }
             });
             
-            document.getElementById('shopping1-container').innerHTML = `<div class="shopping-box"><h3>Week 1 Shopping List</h3><ul>${Array.from(ingW1).map(i => `<li>${i}</li>`).join('')}</ul></div>`;
-            document.getElementById('shopping2-container').innerHTML = `<div class="shopping-box"><h3>Week 2 Shopping List</h3><ul>${Array.from(ingW2).map(i => `<li>${i}</li>`).join('')}</ul></div>`;
+            document.getElementById('shopping1-container').innerHTML = `<div class="shopping-box"><h3>Week 1 Shopping List</h3><ul style="margin-bottom: 0;">${Array.from(ingW1).map(i => `<li>${i}</li>`).join('')}</ul></div>`;
+            document.getElementById('shopping2-container').innerHTML = `<div class="shopping-box"><h3>Week 2 Shopping List</h3><ul style="margin-bottom: 0;">${Array.from(ingW2).map(i => `<li>${i}</li>`).join('')}</ul></div>`;
         }
 
         function toggleLock(i) { schedule[i].locked = !schedule[i].locked; localStorage.setItem('savedSchedule', JSON.stringify(schedule)); render(); }
         
-        // This new function handles the dropdown selection
         function manualOverride(i, val) {
             if (val === 'OUT') {
                 schedule[i].status = 'out';
