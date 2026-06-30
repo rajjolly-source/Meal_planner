@@ -52,7 +52,6 @@
         .main-btn { background: #0ea5e9; color: white; padding: 12px; border: none; font-size: 15px; cursor: pointer; border-radius: 12px; font-weight: bold; width: auto; }
         .main-btn:hover { background: #0284c7; }
 
-        /* Styles for the new features */
         .week-header { display: flex; justify-content: space-between; align-items: center; margin-top: 30px; margin-bottom: 15px; }
         .week-header h2 { margin: 0; color: #334155; font-size: 1.5em; }
         .lock-week-btn { width: auto; background: #10b981; color: white; border: none; padding: 8px 16px; margin: 0; }
@@ -78,9 +77,13 @@
             border-color: #cbd5e1;
             color: #475569;
         }
+        
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1.2em; z-index: 1000; }
     </style>
 </head>
 <body>
+
+    <div id="loading-overlay">Loading Shared Plan...</div>
 
     <h1>Family Meal Planner</h1>
     <div id="meta-info" style="margin-bottom: 15px; font-weight: bold; color: #64748b;"></div>
@@ -102,16 +105,48 @@
 
     <script>
         const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTg90dJccxkJ3BhMJU2TJexeRwlX8XL1Tq1rOWSX6-lCUDF3umkbMNKHuKPgjq1UFKl4eJjww3nC8vD/pub?gid=102504071&single=true&output=csv";
+        
+        // ⚠️ PASTE YOUR COPIED GOOGLE APPS SCRIPT WEB APP URL HERE:
+        const scriptUrl = "https://script.google.com/macros/s/AKfycbw71WbBqS5_4C8f4BYA0tTerP7vCIBTi0AupK5Coz7OZ2bvsghgj4ek5LhuYc4oLLo4Aw/exec"; 
+        
         let recipePool = [];
-        let schedule = JSON.parse(localStorage.getItem('savedSchedule') || "[]");
+        let schedule = [];
+        let globalGenDate = "Never";
         
         const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
         const dayColors = ['#f8fafc', '#f1f5f9', '#fdf8f6', '#f0fdf4', '#f0f9ff', '#fdf4ff', '#fffbeb'];
         
-        // Formats today's date into dd/mm/yy
         function getFormattedDate() {
             const d = new Date();
             return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear().toString().slice(-2)}`;
+        }
+
+        async function saveToCloud() {
+            document.getElementById('loading-overlay').style.display = "flex";
+            document.getElementById('loading-overlay').innerText = "Syncing changes...";
+            try {
+                await fetch(scriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', // Essential for Google Apps Script execution
+                    body: JSON.stringify({ schedule: schedule, genDate: globalGenDate })
+                });
+                // Small buffer layout check before hiding overlay
+                setTimeout(async () => { await syncFromCloud(); }, 800);
+            } catch(e) {
+                alert("Failed to sync changes to the cloud.");
+                document.getElementById('loading-overlay').style.display = "none";
+            }
+        }
+
+        async function syncFromCloud() {
+            try {
+                const res = await fetch(scriptUrl);
+                const cloudData = await res.json();
+                schedule = cloudData.schedule || [];
+                globalGenDate = cloudData.genDate || "Never";
+            } catch (e) {
+                console.log("Cloud read error, system fallback initiated.");
+            }
         }
 
         async function fetchRecipes() {
@@ -131,18 +166,22 @@
                     };
                 });
                 
+                await syncFromCloud();
+                
                 if (schedule.length === 0) {
-                    initializeSchedule();
+                    await initializeSchedule();
                 } else {
                     render();
                 }
             } catch(e) {
                 document.getElementById('meta-info').innerText = "Error loading data.";
+            } finally {
+                document.getElementById('loading-overlay').style.display = "none";
             }
         }
 
         function render() {
-            document.getElementById('meta-info').innerText = "Last generated: " + (localStorage.getItem('genDate') || "Never");
+            document.getElementById('meta-info').innerText = "Last generated: " + globalGenDate;
             
             const w1Cont = document.getElementById('week1-container');
             const w2Cont = document.getElementById('week2-container');
@@ -156,9 +195,7 @@
                 const c = document.createElement('div');
                 c.className = `card ${item.locked ? 'locked' : ''} ${item.status === 'out' ? 'out' : ''}`;
                 
-                if (item.status !== 'out') {
-                    c.style.backgroundColor = dayColors[i % 7];
-                }
+                if (item.status !== 'out') { c.style.backgroundColor = dayColors[i % 7]; }
 
                 let h = "";
                 if (item.rating) {
@@ -166,7 +203,6 @@
                     if (item.rating.includes("R")) h += "❤️R ";
                 }
                 
-                // Construct the Dish Dropdown
                 let dishOptionsHTML = `<option value="OUT" ${item.status === 'out' ? 'selected' : ''}>Going Out</option>`;
                 recipePool.forEach(r => {
                     let safeName = r.name.replace(/"/g, '&quot;');
@@ -174,7 +210,6 @@
                     dishOptionsHTML += `<option value="${safeName}" ${isSelected}>${r.name}</option>`;
                 });
 
-                // Construct the Cook Dropdown
                 let currentCook = item.cook || 'Neha';
                 let uniqueCooks = new Set([currentCook, 'Neha', 'Raj', 'Kayan', 'Vipin']);
                 let cookOptionsHTML = '';
@@ -183,7 +218,6 @@
                 });
                 let cookSelect = `<select class="cook-select" onchange="changeCook(${i}, this.value)" ${item.locked || item.status === 'out' ? 'disabled' : ''}>${cookOptionsHTML}</select>`;
 
-                // Construct the Modification Flag
                 let warningBanner = "";
                 if (item.modified) {
                     warningBanner = `<div class="warning-flag">⚠️ ${item.modified.type} was changed on ${item.modified.date}</div>`;
@@ -227,57 +261,46 @@
             document.getElementById('shopping2-container').innerHTML = `<div class="shopping-box"><h3>Week 2 Shopping List</h3><ul style="margin-bottom: 0;">${Array.from(ingW2).map(i => `<li>${i}</li>`).join('')}</ul></div>`;
         }
 
-        function toggleLock(i) { schedule[i].locked = !schedule[i].locked; localStorage.setItem('savedSchedule', JSON.stringify(schedule)); render(); }
+        async function toggleLock(i) { schedule[i].locked = !schedule[i].locked; await saveToCloud(); }
         
-        function lockWeek(weekNum) {
+        async function lockWeek(weekNum) {
             let start = weekNum === 1 ? 0 : 7;
             let end = weekNum === 1 ? 7 : 14;
-            for (let i = start; i < end; i++) {
-                schedule[i].locked = true;
-            }
-            localStorage.setItem('savedSchedule', JSON.stringify(schedule));
-            render();
+            for (let i = start; i < end; i++) { schedule[i].locked = true; }
+            await saveToCloud();
         }
 
-        function manualOverride(i, val) {
+        async function manualOverride(i, val) {
             if (val === 'OUT') {
                 schedule[i].status = 'out';
             } else {
                 const selectedRecipe = recipePool.find(r => r.name === val);
-                if (selectedRecipe) {
-                    // Keep the current cook and locked status, just change the dish internals
-                    schedule[i] = { ...selectedRecipe, cook: schedule[i].cook, locked: false, status: 'home' };
-                }
+                if (selectedRecipe) { schedule[i] = { ...selectedRecipe, cook: schedule[i].cook, locked: false, status: 'home' }; }
             }
             schedule[i].modified = { type: 'Dish', date: getFormattedDate() };
-            localStorage.setItem('savedSchedule', JSON.stringify(schedule));
-            render();
+            await saveToCloud();
         }
         
-        function changeCook(i, newCook) {
+        async function changeCook(i, newCook) {
             schedule[i].cook = newCook;
             schedule[i].modified = { type: 'Cook', date: getFormattedDate() };
-            localStorage.setItem('savedSchedule', JSON.stringify(schedule));
-            render();
+            await saveToCloud();
         }
 
-        function reroll(i) { 
-            // We preserve the current cook during a reroll, but update the dish
+        async function reroll(i) { 
             let newRecipe = recipePool[Math.floor(Math.random()*recipePool.length)];
             schedule[i] = {...newRecipe, cook: schedule[i].cook, locked:false, status:'home'};
             schedule[i].modified = { type: 'Dish', date: getFormattedDate() };
-            localStorage.setItem('savedSchedule', JSON.stringify(schedule)); 
-            render(); 
+            await saveToCloud(); 
         }
         
-        function initializeSchedule() {
+        async function initializeSchedule() {
             if (schedule.length === 0) {
                 schedule = Array(14).fill(null).map(() => ({
                     ...recipePool[Math.floor(Math.random() * recipePool.length)],
                     locked: false, status: 'home'
                 }));
             } else {
-                // If regenerating, we clear all modification flags so it starts fresh
                 schedule = schedule.map(it => {
                     if (it.locked) return it;
                     let freshDish = {...recipePool[Math.floor(Math.random()*recipePool.length)], locked:false, status:'home'};
@@ -285,10 +308,8 @@
                     return freshDish;
                 });
             }
-            
-            localStorage.setItem('savedSchedule', JSON.stringify(schedule));
-            localStorage.setItem('genDate', new Date().toLocaleString());
-            render();
+            globalGenDate = new Date().toLocaleString();
+            await saveToCloud();
         }
 
         fetchRecipes();
